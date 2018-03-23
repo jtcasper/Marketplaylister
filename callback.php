@@ -131,30 +131,59 @@
     print_r($music_group);
     */
     
-    #TODO Check if this month's playlist exists first
+    # Check if this month's playlist exists
     
-    $playlist_data = [
-        'name' => MONTHS[$today->format('m')] . ' Marketplace Tracks'
-    ];
+    $playlistName = MONTHS[$today->format('m')] . ' Marketplace Tracks';
     
-    $playlist_opts = [
+    $checkPlaylistOpts = [
         'http' => [
-            'method' => 'POST',
+            'method' => 'GET',
             'header' => 'Authorization: Bearer ' . $spot_token . "\r\n"
-                     . 'Content-Type application/json \r\n',
-            'content' => json_encode($playlist_data)
         ]
     ];
     
-    $playlist_context = stream_context_create($playlist_opts);
+    $checkPlaylistContext = stream_context_create($checkPlaylistOpts);
     
-    $playlist_req = file_get_contents(BASE_URL . 'users/' . $me_id . '/playlists', false, $playlist_context);
+    $checkPlaylistReq = file_get_contents(BASE_URL  . 'me/playlists', false, $checkPlaylistContext);
     
-    $playlist_json = json_decode($playlist_req, true);
+    $checkPlaylistJson = json_decode($checkPlaylistReq, true);
     
-    $playlist_id = $playlist_json['id'];
+    print_r($checkPlaylistJson);
+        
+    foreach ($checkPlaylistJson['items'] as $playlist) {
+        #TODO should check if $user owns playlist
+        if (!strcmp($playlistName, $playlist['name'])) {
+            $playlistID = $playlist['id'];
+        }
+    }
     
-    echo '<br />' . $playlist_id;
+    echo 'playlistID' . $playlistID;
+    
+    # Create new playlist if one does not exist
+    
+    if (!$playlistID) {
+
+        $playlist_data = [
+            'name' => $playlistName,
+        ];
+        
+        $playlist_opts = [
+            'http' => [
+                'method' => 'POST',
+                'header' => 'Authorization: Bearer ' . $spot_token . "\r\n"
+                        . 'Content-Type application/json \r\n',
+                'content' => json_encode($playlist_data)
+            ]
+        ];
+
+        $playlist_context = stream_context_create($playlist_opts);
+        $playlist_req = file_get_contents(BASE_URL . 'users/' . $me_id . '/playlists', false, $playlist_context);
+        $playlist_json = json_decode($playlist_req, true);
+        $playlistID = $playlist_json['id'];
+        
+        echo '<br />' . $playlistID;
+        
+    }
     
     $uris = [];
     
@@ -207,13 +236,13 @@
     ];
     
     $update_context = stream_context_create($update_opts);
-    $update_url = BASE_URL . 'users/' . $me_id . '/playlists/' . $playlist_id . '/tracks';
+    $update_url = BASE_URL . 'users/' . $me_id . '/playlists/' . $playlistID . '/tracks';
     echo '<br />' . $update_url;
     echo '<br />';
     echo '<br />' . count($uris);
     echo '<br />';
     print_r(json_encode($update_data));
-    $update_req = file_get_contents(BASE_URL . 'users/' . $me_id . '/playlists/' . $playlist_id . '/tracks', false, $update_context);
+    $update_req = file_get_contents(BASE_URL . 'users/' . $me_id . '/playlists/' . $playlistID . '/tracks', false, $update_context);
     
     file_put_contents(DATE_FILE, $recentEpDate->format(DATE_FORM));
     
