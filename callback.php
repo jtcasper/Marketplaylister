@@ -1,6 +1,8 @@
 <?php
-
+    declare(strict_types = 1);
+    
     require 'secrets.php';
+    require 'mpfuncs.php';
     
     const BASE_URL = 'https://api.spotify.com/v1/';
     const AUTH_URL = 'https://accounts.spotify.com/';
@@ -29,14 +31,14 @@
     
     $today = new DateTime;
     
-    print_r($today);
+    #print_r($today);
     
-    $prevDateTxt = file_get_contents(DATE_FILE);
+    $prevDTTxt = file_get_contents(DATE_FILE);
     
-    $prevDate = $prevDateTxt ? DateTime::createFromFormat(DATE_FORM, $prevDateTxt) : DateTime::createFromFormat(DATE_FORM, $today->format('m/') . '01' . $today->format('/Y'));
+    $prevDT = $prevDTTxt ? DateTime::createFromFormat(DATE_FORM, $prevDTTxt) : DateTime::createFromFormat(DATE_FORM, $today->format('m/') . '01' . $today->format('/Y'));
     
-    if (strcmp($prevDate->format('m'), $today->format('m')) < 0) {
-        $prevDate = DateTime::createFromFormat(DATE_FORM, $today->format('m/') . '01' . $today->format('/Y'));
+    if (strcmp($prevDT->format('m'), $today->format('m')) < 0) {
+        $prevDT = DateTime::createFromFormat(DATE_FORM, $today->format('m/') . '01' . $today->format('/Y'));
     }
     
     
@@ -64,7 +66,7 @@
     
     $spot_req = file_get_contents(AUTH_URL . 'api/token', false, $token_context);
     
-    echo $spot_req;
+    #echo $spot_req;
     $spot_json = json_decode($spot_req, true);
 
     $spot_token = $spot_json['access_token'];
@@ -83,44 +85,39 @@
     $me_id = $me_json['id'];
     
     echo '<br />';
-    print_r($me_resp);
-        
+    #print_r($me_resp);
+    
+    $page = 1;
     $html = file_get_contents('https://www.marketplace.org/latest-music');
     $DOM = new DOMDocument;
     $DOM->loadHTML($html);
     $headers = $DOM->getElementsByTagName('h2');
     $divs = $DOM->getElementsByTagName('div');
     
-    $recentEpDate;
-    $music_group = [];
+    $recentEpDT;
+    $episodePages = [];
     
     foreach ($headers as $header) {
         if ($header->hasAttribute('class') && $header->getAttribute('class') === 'river--hed') {
-            $recentEpDate = DateTime::createFromFormat(DATE_FORM, explode(':', $header->nodeValue)[0]);
+            $recentEpDT = DateTime::createFromFormat(DATE_FORM, explode(':', $header->nodeValue)[0]);
             break;
         }
     }
-        
-    $daysToGet = $recentEpDate->format('d') - $prevDate->format('d');
+    
+    $prevDate = (int) $prevDT->format('d');
+    $recentEpDate = (int) $recentEpDT->format('d');
+    $daysToGet = ($prevDate === 1) ? $recentEpDate : $recentEpDate - $prevDate;
+    $daysToGet = $daysToGet - 2 * (int) ($daysToGet / 7);
+    
+    if ($daysToGet === 0) {
+        echo 'No new episodes since last check.';
+        exit(0);
+    }
 
     
-    foreach ($divs as $div) {
-        if ($div->hasAttribute('class') && $div->getAttribute('class') === 'episode-music') {
-            if (!$daysToGet) {
-                break;
-            }
-            $songs = [];
-            foreach ($div->childNodes as $row) {
-                $children = $row->childNodes[0]->childNodes;
-                $songs[] = [
-                    'title' => $children[0]->nodeValue,
-                    'artist' => $children[1]->nodeValue
-                ];
-            }
-            $daysToGet--;
-            $music_group[] = $songs;
-        }
-    }
+    do {
+        $episodePages[] = parseEpisodePage($divs, $daysToGet);
+    } while ($daysToGet > 0 && ($DOM->loadHTML(file_get_contents('https://www.marketplace.org/latest-music?page=' . ++$page))) && ($divs = $DOM->getElementsByTagName('div')) );
 
     /*
     echo '<br />';
@@ -128,8 +125,10 @@
     print_r($date_headers);
     
     echo '<br />';
-    print_r($music_group);
+    print_r($episodes);
     */
+    
+    print_r($episodePages);
     
     # Check if this month's playlist exists
     
@@ -147,9 +146,7 @@
     $checkPlaylistReq = file_get_contents(BASE_URL  . 'me/playlists', false, $checkPlaylistContext);
     
     $checkPlaylistJson = json_decode($checkPlaylistReq, true);
-    
-    print_r($checkPlaylistJson);
-        
+            
     foreach ($checkPlaylistJson['items'] as $playlist) {
         #TODO should check if $user owns playlist
         if (!strcmp($playlistName, $playlist['name'])) {
@@ -157,11 +154,12 @@
         }
     }
     
-    echo 'playlistID' . $playlistID;
+    #echo 'playlistID' . $playlistID;
     
     # Create new playlist if one does not exist
-    
-    if (!$playlistID) {
+    # DEVELOPMENT TEMP ALWAYS CREATE NEW PLAYLIST
+    #if (!$playlistID) {
+    if (true) {
 
         $playlist_data = [
             'name' => $playlistName,
@@ -181,50 +179,59 @@
         $playlist_json = json_decode($playlist_req, true);
         $playlistID = $playlist_json['id'];
         
-        echo '<br />' . $playlistID;
+        #echo '<br />' . $playlistID;
         
     }
     
     $uris = [];
     
-    for ($i = count($music_group) - 1; $i >= 0; $i--) {
-        
-    $track_opts = [
-        'http' => [
-            'method' => 'GET',
-            'header' => 'Authorization: Bearer ' . $spot_token . "\r\n"
-        ]
-    ];
+    foreach ( array_reverse($episodePages) as $episodes) {
+        foreach ( array_reverse($episodes) as $episode) {
+
+        $track_opts = [
+            'http' => [
+                'method' => 'GET',
+                'header' => 'Authorization: Bearer ' . $spot_token . "\r\n"
+            ]
+        ];
     
-    $track_context = stream_context_create($track_opts);
+        $track_context = stream_context_create($track_opts);
     
-        foreach ($music_group[$i] as $song_info) {
+            foreach ($episode as $song_info) {
     
-            $track_search_url = BASE_URL . 'search?q=track:' . urlencode($song_info['title']) . '+artist:' . urlencode($song_info['artist']) . '&type=track';
+                $track_search_url = BASE_URL . 'search?q=track:' . urlencode($song_info['title']) 
+                                    . '+artist:' . urlencode($song_info['artist']) . '&type=track';
              
-            echo '<br />' . $track_search_url;
-            echo '<br />';
+                #echo '<br />' . $track_search_url;
+                #echo '<br />';
             
-            $track_req = file_get_contents($track_search_url, false, $track_context);
-            $track_json = json_decode($track_req, true);
+                $trackReq = file_get_contents($track_search_url, false, $track_context);
+                if ($trackReq) {
+                    $trackJSON = json_decode($trackReq, true);
+                    $trackJSON = $trackJSON['tracks'];
             
-            print_r($track_json);
+                    print_r($trackJSON);
+                    
+                    if ($trackJSON['total'] === 0) {
+                        continue;
+                    }
             
-            $uris[] = $track_json['tracks']['items'][0]['uri'];
+                    $uris[] = $trackJSON['items'][0]['uri'];
             
-            #rate limit
-            sleep(1);
-    
+                    #rate limit
+                    sleep(1);
+
+                }
+            }
         }
-    
     }
-    
+        
     $update_data = [
-        'uris' => array_values(array_filter($uris, function($uri) {return !is_null($uri);} ))
+        'uris' => $uris,
     ];
     
     echo '<br /> update_data <br />';
-    print_r($update_data);
+    #print_r($update_data);
     
     $update_opts = [
         'http' => [
@@ -243,6 +250,7 @@
     echo '<br />';
     print_r(json_encode($update_data));
     $update_req = file_get_contents(BASE_URL . 'users/' . $me_id . '/playlists/' . $playlistID . '/tracks', false, $update_context);
+    print_r($update_req);
     
-    file_put_contents(DATE_FILE, $recentEpDate->format(DATE_FORM));
+    file_put_contents(DATE_FILE, $recentEpDT->format(DATE_FORM));
     
