@@ -7,7 +7,6 @@
     const BASE_URL = 'https://api.spotify.com/v1/';
     const AUTH_URL = 'https://accounts.spotify.com/';
     const DATE_FILE = 'prev_date.txt';
-    const DATE_FORM = 'm/d/Y';
     const MONTHS = [
         '01' => 'January',
         '02' => 'February',
@@ -135,7 +134,7 @@
     $uris = [];
     
     $pdo = new PDO("sqlite:mktplc.sqlite3");
-    $stmt = $pdo->prepare("SELECT uri FROM songs s WHERE (SELECT strftime('%m', s.date) == :month and strftime('%Y', s.date) == :year;");
+    $stmt = $pdo->prepare("SELECT uri FROM songs s WHERE uri IS NOT NULL AND strftime('%m', s.date) == :month AND strftime('%Y', s.date) == :year");
     $stmt->bindParam(':month', $state[0]);
     $stmt->bindParam(':year', $state[1]);
     if ($stmt->execute()) {
@@ -169,6 +168,3 @@
     print_r(json_encode($update_data));
     $update_req = file_get_contents(BASE_URL . 'users/' . $me_id . '/playlists/' . $playlistID . '/tracks', false, $update_context);
     print_r($update_req);
-    
-    file_put_contents(DATE_FILE, $recentEpDT->format(DATE_FORM));
-    
