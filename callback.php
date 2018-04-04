@@ -25,22 +25,15 @@
         
     $code = $_GET['code'];
     
+    // Get month and year user is requesting
+    $state = explode(':', $_GET['state']);
+    
+    
     if (!$code) {
         exit(1);
     }
-    
-    $today = new DateTime;
-    
-    #print_r($today);
-    
-    $prevDTTxt = file_get_contents(DATE_FILE);
-    
-    $prevDT = $prevDTTxt ? DateTime::createFromFormat(DATE_FORM, $prevDTTxt) : DateTime::createFromFormat(DATE_FORM, $today->format('m/') . '01' . $today->format('/Y'));
-    
-    if (strcmp($prevDT->format('m'), $today->format('m')) < 0) {
-        $prevDT = DateTime::createFromFormat(DATE_FORM, $today->format('m/') . '01' . $today->format('/Y'));
-    }
-    
+        
+    #print_r($today);    
     
     #Handle Spotify Token Authorization
     
@@ -66,10 +59,11 @@
     
     $spot_req = file_get_contents(AUTH_URL . 'api/token', false, $token_context);
     
-    #echo $spot_req;
+    echo $spot_req;
     $spot_json = json_decode($spot_req, true);
 
     $spot_token = $spot_json['access_token'];
+    
     
     $me_opts = [
         'http' => [
@@ -84,55 +78,9 @@
     $me_json = json_decode($me_resp, true);
     $me_id = $me_json['id'];
     
-    echo '<br />';
-    #print_r($me_resp);
-    
-    $page = 1;
-    $html = file_get_contents('https://www.marketplace.org/latest-music');
-    $DOM = new DOMDocument;
-    $DOM->loadHTML($html);
-    $headers = $DOM->getElementsByTagName('h2');
-    $divs = $DOM->getElementsByTagName('div');
-    
-    $recentEpDT;
-    $episodePages = [];
-    
-    foreach ($headers as $header) {
-        if ($header->hasAttribute('class') && $header->getAttribute('class') === 'river--hed') {
-            $recentEpDT = DateTime::createFromFormat(DATE_FORM, explode(':', $header->nodeValue)[0]);
-            break;
-        }
-    }
-    
-    $prevDate = (int) $prevDT->format('d');
-    $recentEpDate = (int) $recentEpDT->format('d');
-    $daysToGet = ($prevDate === 1) ? $recentEpDate : $recentEpDate - $prevDate;
-    $daysToGet = $daysToGet - 2 * (int) ($daysToGet / 7);
-    
-    if ($daysToGet === 0) {
-        echo 'No new episodes since last check.';
-        exit(0);
-    }
-
-    
-    do {
-        $episodePages[] = parseEpisodePage($divs, $daysToGet);
-    } while ($daysToGet > 0 && ($DOM->loadHTML(file_get_contents('https://www.marketplace.org/latest-music?page=' . ++$page))) && ($divs = $DOM->getElementsByTagName('div')) );
-
-    /*
-    echo '<br />';
-
-    print_r($date_headers);
-    
-    echo '<br />';
-    print_r($episodes);
-    */
-    
-    print_r($episodePages);
-    
     # Check if this month's playlist exists
     
-    $playlistName = MONTHS[$today->format('m')] . ' Marketplace Tracks';
+    $playlistName = MONTHS[$state[0]] . ' ' . $state[1] . ' Marketplace Tracks';
     
     $checkPlaylistOpts = [
         'http' => [
@@ -163,6 +111,7 @@
 
         $playlist_data = [
             'name' => $playlistName,
+            'description' => 'A playlist of Marketplace tracks by Marketplaylister.',
         ];
         
         $playlist_opts = [
@@ -185,45 +134,14 @@
     
     $uris = [];
     
-    foreach ( array_reverse($episodePages) as $episodes) {
-        foreach ( array_reverse($episodes) as $episode) {
-
-        $track_opts = [
-            'http' => [
-                'method' => 'GET',
-                'header' => 'Authorization: Bearer ' . $spot_token . "\r\n"
-            ]
-        ];
-    
-        $track_context = stream_context_create($track_opts);
-    
-            foreach ($episode as $song_info) {
-    
-                $track_search_url = BASE_URL . 'search?q=track:' . urlencode($song_info['title']) 
-                                    . '+artist:' . urlencode($song_info['artist']) . '&type=track';
-             
-                #echo '<br />' . $track_search_url;
-                #echo '<br />';
-            
-                $trackReq = file_get_contents($track_search_url, false, $track_context);
-                if ($trackReq) {
-                    $trackJSON = json_decode($trackReq, true);
-                    $trackJSON = $trackJSON['tracks'];
-            
-                    print_r($trackJSON);
-                    
-                    if ($trackJSON['total'] === 0) {
-                        continue;
-                    }
-            
-                    $uris[] = $trackJSON['items'][0]['uri'];
-            
-                    #rate limit
-                    sleep(1);
-
-                }
-            }
-        }
+    $pdo = new PDO("sqlite:mktplc.sqlite3");
+    $stmt = $pdo->prepare("SELECT uri FROM songs s WHERE (SELECT strftime('%m', s.date) == :month and strftime('%Y', s.date) == :year;");
+    $stmt->bindParam(':month', $state[0]);
+    $stmt->bindParam(':year', $state[1]);
+    if ($stmt->execute()) {
+      while ($row = $stmt->fetch()) {
+        $uris[] = $row['uri'];
+      }
     }
         
     $update_data = [
