@@ -13,7 +13,7 @@
     $query = $pdo->query('SELECT date FROM songs order by date desc limit 1');
     $resultset = $query->fetch();
 
-    $lastEpDT = new DateTime::createFromFormat(SQLITE_DATE_FORM, $resultset['date'];
+    $lastEpDT = DateTime::createFromFormat(SQLITE_DATE_FORM, $resultset['date']);
     $startDate = new DateTime;
     $episodeDatePages = [];
     $episodeTrackPages = [];

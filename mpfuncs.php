@@ -1,6 +1,6 @@
 <?php
 
-    const DATE_FORM = 'm/d/Y';
+    const DATE_FORM = 'mdY';
 
     
     function parseEpisodePage(DomNodeList $divs): array {
@@ -35,11 +35,9 @@
       $episodeDates = [];
       foreach ($headers as $header) {
         if ($header->hasAttribute('class') && $header->getAttribute('class') === 'river--hed') {
-          $dateStringParts = explode('/', explode(':', $header->nodeValue)[0]);
-          if ( strlen($dateStringParts[2]) === 2 ) {
-            $dateStringParts[2] = '20' . $dateStringParts[2];
-          }
-          $episodeDate = DateTime::createFromFormat(DATE_FORM, implode("/", $dateStringParts));
+          $episodeAnchorHref = $header->firstChild->getAttribute('href');
+          $dateString = explode('/', $episodeAnchorHref)[3];
+          $episodeDate = DateTime::createFromFormat(DATE_FORM, $dateString);
           if ($episodeDate < $lastDate) {
             break;
           }

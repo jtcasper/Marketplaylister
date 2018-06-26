@@ -49,7 +49,7 @@
             /*'header' => "Content-type: application/x-www-form-urlencoded\r\n"
                      . "Content-Length: " . strlen($token_data) . "\r\n"
                      . "Authorization: Basic " . base64_encode('868e2cba00de4819900dd8a647a7ba7d:' . CLIENT_SECRET) . "\r\n",*/
-            'header' => "Authorization: Basic " . base64_encode('868e2cba00de4819900dd8a647a7ba7d:' . CLIENT_SECRET) . " \r\n",
+            'header' => "Authorization: Basic " . base64_encode('93a6f9c0375c45d4b348157691aa24e8:' . CLIENT_SECRET) . " \r\n",
             'content' => $token_data
         ]
     ];

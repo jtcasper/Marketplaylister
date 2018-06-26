@@ -2,7 +2,7 @@
 
     const BASE_URL = 'https://api.spotify.com/v1/';
     // Currently updated manually whenever I get one from the server
-    const SPOT_TOKEN = 'BQCQTtwO2kiMcV_VDgfSmTXQzGlO47rUuPyc4oCHpRunPQx2ZhhVYOtksVZPMbSgoCy3cGiRMHMygon5-SleqfsP0lvRMQW3gm1Q_a8TRv5MfCGQdNwdUcUu_NBpcSjWDNUadWeg3ps-WTDWxjUWm_FOlfxMy7a2AdI_RHWZ0Lx56WHf8gYA4-YVUm_HxpqDlReqEkWE9DHppQ';
+    const SPOT_TOKEN = 'BQBU1Qs3ROpkN9CwlQNpZS00khdSU61zuejyKbjS4KiIszK8aiLaTd9TfPiSH0OsmtWStOVL7ym-QYEBWyLX3qlFIN5peit0n6_B-LLtz4C8KSh3Dxj5O3jf4HSWf3fFISC4cLbznfSV3QnpQ4vdnCTehz4vT8V54XDiG2hX275Uw_gDHzKjqFWQo249-rY42rBv7pf555wQ2PSBymuZMcDlIDEeAbGiyRI';
   
     $pdo = new PDO("sqlite:mktplc.sqlite3");
     
@@ -13,8 +13,7 @@
     
     if ($stmt->execute()) {
       
-      print_r($stmt->fetchAll());
-      exit(0);
+      #print_r($stmt->fetchAll());
       while ($row = $stmt->fetch()) {
         
         $track_opts = [
